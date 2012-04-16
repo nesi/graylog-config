@@ -1,0 +1,170 @@
+import org.graylog2.messagehandlers.gelf.GELFMessage
+import java.util.regex.Matcher
+import java.util.regex.Pattern
+
+// Graylog message: Creating command: command=[set group /nz/nesi] cmd=[set] args=[group /nz/nesi]
+// Graylog message: Executing command: command=[set group /nz/nesi]
+// Graylog message: Finished command: command=[set group /nz/nesi] duration=[5]
+
+rule "Gricli command with arguments"
+    when
+        m : GELFMessage( shortMessage matches ".*command: command=\\[.*" )
+    then
+      Matcher matcher = Pattern.compile(".*command: command=\\[(.*?)\\].*").matcher(m.getShortMessage());
+	if (matcher.find()) {  
+	   m.addAdditionalData("_command",matcher.group(1));
+     	}	
+end
+
+// Graylog message: Creating command: command=[set group /nz/nesi] cmd=[set] args=[group /nz/nesi]
+ 
+rule "Gricli command without arguments"
+    when
+        m : GELFMessage( shortMessage matches "^Creating command: command=\\[.*" )
+    then
+      Matcher matcher = Pattern.compile("^Creating command:.*cmd=\\[(.*?)\\].*").matcher(m.getShortMessage());
+	if (matcher.find()) {  
+	   m.addAdditionalData("_cmd",matcher.group(1));
+     	}	
+end
+
+// Graylog message: Finished command: command=[set group /nz/nesi] duration=[5]
+
+rule "Duration for gricli command in ms"
+    when
+        m : GELFMessage( shortMessage matches "^Finished command:.*" )
+    then
+      Matcher matcher = Pattern.compile(".*duration=\\[(.*?)\\].*").matcher(m.getShortMessage());
+	if (matcher.find()) {
+          m.addAdditionalData("_duration",matcher.group(1));
+	}	
+end
+
+// Graylog message: Entering method: method=[getFqans] arguments=[NO_ARGS] time=[1328499268033] open_calls=[1]
+// Graylog message: Finishing method: method=[getFqans] arguments=[NO_ARGS] result=[/nz;/nz/demo;/nz/nesi] time=[1328499268034] duration=[1] open_calls=[0]
+
+rule "Grisu method"
+    when
+        m : GELFMessage( shortMessage matches ".*method: method=\\[.*" )
+    then
+      Matcher matcher = Pattern.compile(".*method: method=\\[(.*?)\\].*").matcher(m.getShortMessage());
+	if (matcher.find()) {
+	   m.addAdditionalData("_method",matcher.group(1));
+	}	
+end
+
+// Graylog message: Finishing method: method=[getFqans] arguments=[NO_ARGS] result=[/nz;/nz/demo;/nz/nesi] time=[1328499268034] duration=[1] open_calls=[0]
+
+rule "Duration for grisu method in ms"
+    when
+        m : GELFMessage( shortMessage matches "^Finishing method: method=\\[.*" )
+    then
+      Matcher matcher = Pattern.compile(".*duration=\\[(.*?)\\].*").matcher(m.getShortMessage());
+	if (matcher.find()) {
+	   m.addAdditionalData("_duration",matcher.group(1));
+	}	
+end
+
+// GrayLog2 message: Finishing method: method=[getJob] [failed] arguments=[templatetest] Exception=[NoSuchJobException] 
+// Message=[Job with name templatetestdoes not exist.] time=[1327535476052] duration=[6] open_calls=[0]
+
+rule "Type of Exception for a failed method"
+    when
+        m : GELFMessage( shortMessage matches "^Finishing method: method=.*\\[failed\\].*" )
+    then
+      Matcher matcher = Pattern.compile(".*Exception=\\[(.*?)\\].*").matcher(m.getShortMessage());
+	if (matcher.find()) {
+	   m.addAdditionalData("_exception",matcher.group(1));
+	}	
+end
+
+// GrayLog2 message: Finished command: command=[download gricli_3] [failed] error=[unknown command: "download gricli_3"] duration=[0]
+
+rule "Type of error for a command"
+    when
+        m : GELFMessage( shortMessage matches "^Finished command: command=.*\\[failed\\].*" )
+    then
+      Matcher matcher = Pattern.compile(".*error=\\[(.*?)\\].*").matcher(m.getShortMessage());
+	if (matcher.find()) {
+	   m.addAdditionalData("_error",matcher.group(1));
+	}	
+end
+
+// GrayLog2 full message(regex): RSL is.*( vo = "/nz/nesi" ).*
+
+rule "Virtual organisation"
+    when
+        m : GELFMessage( fullMessage matches "^RSL is.*vo =.*" )
+    then
+      Matcher matcher = Pattern.compile(".*vo = \"(.*?)\".*").matcher(m.getFullMessage());
+	if (matcher.find()) {
+	   m.addAdditionalData("_vo",matcher.group(1));
+	}	
+end
+
+// GrayLog2 full message(regex): RSL is.*( vo = "/nz/nesi" ).*
+
+rule "Number of CPUs"
+    when
+        m : GELFMessage( fullMessage matches "^RSL is.*count =.*" )
+    then
+      Matcher matcher = Pattern.compile(".*count = \"(.*?)\".*").matcher(m.getFullMessage());
+	if (matcher.find()) {
+	   m.addAdditionalData("_cpu",matcher.group(1));
+	}	
+end
+
+// GrayLog2 full message(regex): RSL is.*( count = "1" ).*( jobtype = "single" ).*
+//
+// Type	 count (number of CPU)	 jobtype	 hostCount (number of hosts)
+// Single	               1	        single	 no such field
+// Shared memory	        > 1	        single	 1 or no such field
+// Custom	               > 1	        single	 > 1
+// MPI	                      > 1	        mpi	        > 1
+
+rule "Job type"
+    when
+        m : GELFMessage( fullMessage matches "^RSL is.* count =.* jobtype =.*" )
+    then
+      Matcher matcher = Pattern.compile(".*count = \"(.*?)\".*jobtype = \"(.*?)\".*").matcher(m.getFullMessage());
+	if (matcher.find()) {
+
+          String jobType = matcher.group(2);
+          int numberOfCPU = Integer.parseInt(matcher.group(1));
+          
+          if (jobType.equals("single")){
+                if(numberOfCPU == 1){
+                    m.addAdditionalData("_job_type","single");
+                }
+                else {
+                    m.addAdditionalData("_job_type","shared memory");
+                }
+          }
+          else {
+               m.addAdditionalData("_job_type","mpi");
+          }
+
+
+	}	
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
